@@ -1,0 +1,42 @@
+*:not(input) {
+    user-select: none;
+}
+* {
+    box-sizing: border-box;
+}
+
+.user-card {
+    width: calc(100% / 3 - 40px);
+    margin: 20px;
+    min-width: 280px;
+}
+
+.user-cards {
+    width: 100%;
+    padding: 20px;
+}
+
+.todo-text .Mui-disabled::before {
+    border-bottom: none !important;
+}
+
+.todo-text .Mui-disabled textarea {
+    color: rgba(0, 0, 0, 0.87) !important;
+    -webkit-text-fill-color: rgba(0, 0, 0, 0.87);
+}
+li {
+    transition: 0.3s;
+}
+li:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.form-input {
+    width: 234px !important;
+}
+
+@media (max-width: 520px) {
+    .form-input {
+        width: 100% !important;
+    }
+}
