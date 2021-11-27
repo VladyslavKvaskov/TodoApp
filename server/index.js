@@ -192,7 +192,7 @@ const root = {
         }).then(
             (todo) =>
                 new Promise((resolve, reject) => {
-                    database.run('DELETE * FROM todos WHERE id=?;', [id], (err) => {
+                    database.run('DELETE FROM todos WHERE id=?;', [id], (err) => {
                         if (err) {
                             reject([]);
                         }
