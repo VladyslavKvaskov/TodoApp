@@ -1,85 +1,270 @@
 const express = require('express');
 const { graphqlHTTP } = require('express-graphql');
+const sqlite3 = require('sqlite3').verbose();
 
 const cors = require('cors');
 const schema = require('./schema');
 
-let users = [];
-let todos = [];
-let userCounter = 1;
-let todoCounter = 1;
+const database = new sqlite3.Database('database.db');
+
+database.run(`
+    CREATE TABLE IF NOT EXISTS users (
+    id integer PRIMARY KEY,
+    username text,
+    age integer )
+`);
+database.run(`
+    CREATE TABLE IF NOT EXISTS todos (
+    id integer PRIMARY KEY,
+    text text,
+    done bolean,
+    userId integer )
+`);
 
 const app = express();
 app.use(cors());
 
 const root = {
-    users: () => {
-        let r = [];
+    users: () =>
+        new Promise((resolve, reject) => {
+            database.all('SELECT * FROM users;', (err, rowsUser) => {
+                if (err) {
+                    reject([]);
+                }
 
-        for (const user of users) {
-            r.push({ ...user, ...{ todos: todos.filter((todo) => todo.userId == user.id) } });
-        }
+                resolve(rowsUser);
+            });
+        }).then(
+            (rowsUser) =>
+                new Promise((resolve, reject) => {
+                    database.all('SELECT * FROM todos;', (err, rowsTodo) => {
+                        if (err) {
+                            reject([]);
+                        }
 
-        return r;
-    },
-    user: ({ id }) => ({ ...users.find((user) => user.id == id), ...{ todos: todos.filter((todo) => todo.userId == id) } }),
-    addUser: ({ user }) => {
-        const newUser = { ...user, ...{ id: userCounter++ } };
-        users.push(newUser);
-        return { ...newUser, ...{ todos: [] } };
-    },
-    deleteUser: ({ id }) => {
-        const u = users.find((user) => user.id == id);
-        const r = { ...u, ...{ todos: todos.filter((todo) => todo.userId == u.id) } };
-        users = users.filter((user) => user.id != id);
-        todos = todos.filter((todo) => todo.userId != u.id);
-        return r;
-    },
-    todos: () => todos,
-    todo: ({ id }) => todos.find((todo) => todo.id == id),
-    addTodo: ({ todo }) => {
-        if (!todo.done) {
-            todo.done = false;
-        }
-        todo.id = todoCounter++;
-        todos.push(todo);
-        return todo;
-    },
-    deleteTodo: ({ id }) => {
-        r = todos.find((todo) => todo.id == id);
-        todos = todos.filter((todo) => todo.id != id);
-        return r;
-    },
-    doTodo: ({ id }) => {
-        let r = null;
-        for (const todo of todos) {
-            if (todo.id == id) {
-                todo.done = true;
-                r = todo;
-            }
-        }
-        return r;
-    },
-    undoTodo: ({ id }) => {
-        let r = null;
-        for (const todo of todos) {
-            if (todo.id == id) {
-                todo.done = false;
-                r = todo;
-            }
-        }
-        return r;
-    },
-    setTextTodo: ({ id, text }) => {
-        let r = null;
-        for (const todo of todos) {
-            if (todo.id == id) {
-                todo.text = text;
-                r = todo;
-            }
-        }
-        return r;
-    },
+                        const r = [];
+                        for (const user of rowsUser) {
+                            r.push({
+                                ...user,
+                                ...{
+                                    todos: rowsTodo.filter((todo) => todo.userId == user.id),
+                                },
+                            });
+                        }
+
+                        resolve(r);
+                    });
+                })
+        ),
+
+    user: ({ id }) =>
+        new Promise((resolve, reject) => {
+            database.get('SELECT * FROM users WHERE id=?;', [id], (err, user) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(user);
+            });
+        }).then(
+            (user) =>
+                new Promise((resolve, reject) => {
+                    database.all('SELECT * FROM todos WHERE userId = ?;', [id], (err, todos) => {
+                        if (err) {
+                            reject([]);
+                        }
+
+                        resolve({ ...user, ...{ todos } });
+                    });
+                })
+        ),
+
+    addUser: ({ user }) =>
+        new Promise((resolve, reject) => {
+            database.run('INSERT INTO users (username, age) VALUES (?,?);', [user.username, user.age], (err) => {
+                if (err) {
+                    reject([]);
+                }
+                database.get('SELECT last_insert_rowid() as id;', (err, row) => {
+                    if (err) {
+                        reject([]);
+                    }
+                    resolve({
+                        id: row['id'],
+                        username: user.username,
+                        age: user.age,
+                        todos: [],
+                    });
+                });
+            });
+        }),
+
+    deleteUser: ({ id }) =>
+        new Promise((resolve, reject) => {
+            database.get('SELECT * FROM users WHERE id=?;', [id], (err, user) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(user);
+            });
+        }).then((user) =>
+            new Promise((resolve, reject) => {
+                database.run('DELETE FROM users WHERE id=?;', [id], (err) => {
+                    if (err) {
+                        reject([]);
+                    }
+                    resolve(user);
+                });
+            }).then(() =>
+                new Promise((resolve, reject) => {
+                    database.all('SELECT * FROM todos WHERE userId=?;', [id], (err, todos) => {
+                        if (err) {
+                            reject([]);
+                        }
+                        resolve(todos);
+                    });
+                }).then(
+                    (todos) =>
+                        new Promise((resolve, reject) => {
+                            database.run('DELETE FROM todos WHERE userId=?;', [id], (err) => {
+                                if (err) {
+                                    reject([]);
+                                }
+                                resolve({ ...user, ...{ todos } });
+                            });
+                        })
+                )
+            )
+        ),
+
+    todos: () =>
+        new Promise((resolve, reject) => {
+            database.all('SELECT * FROM todos;', (err, todos) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(todos);
+            });
+        }),
+
+    todo: ({ id }) =>
+        new Promise((resolve, reject) => {
+            database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(todo);
+            });
+        }),
+
+    addTodo: ({ todo }) =>
+        new Promise((resolve, reject) => {
+            database.run('INSERT INTO todos (text, done, userId) VALUES (?,?,?);', [todo.text, todo.done ? true : false, todo.userId], (err) => {
+                if (err) {
+                    reject([]);
+                }
+                database.get('SELECT last_insert_rowid() as id', (err, row) => {
+                    if (err) {
+                        reject([]);
+                    }
+                    resolve({
+                        id: row['id'],
+                        text: todo.text,
+                        done: todo.done ? true : false,
+                        userId: todo.userId,
+                    });
+                });
+            });
+        }),
+
+    deleteTodo: ({ id }) =>
+        new Promise((resolve, reject) => {
+            database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(todo);
+            });
+        }).then(
+            (todo) =>
+                new Promise((resolve, reject) => {
+                    database.run('DELETE * FROM todos WHERE id=?;', [id], (err) => {
+                        if (err) {
+                            reject([]);
+                        }
+
+                        resolve(todo);
+                    });
+                })
+        ),
+
+    doTodo: ({ id }) =>
+        new Promise((resolve, reject) => {
+            database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(todo);
+            });
+        }).then(
+            (todo) =>
+                new Promise((resolve, reject) => {
+                    database.run('UPDATE todos SET done=? WHERE id=?;', [true, id], (err) => {
+                        if (err) {
+                            reject([]);
+                        }
+
+                        resolve({ ...todo, ...{ done: true } });
+                    });
+                })
+        ),
+    undoTodo: ({ id }) =>
+        new Promise((resolve, reject) => {
+            database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(todo);
+            });
+        }).then(
+            (todo) =>
+                new Promise((resolve, reject) => {
+                    database.run('UPDATE todos SET done=? WHERE id=?;', [false, id], (err) => {
+                        if (err) {
+                            reject([]);
+                        }
+
+                        resolve({ ...todo, ...{ done: false } });
+                    });
+                })
+        ),
+    setTextTodo: ({ id, text }) =>
+        new Promise((resolve, reject) => {
+            database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(todo);
+            });
+        }).then(
+            (todo) =>
+                new Promise((resolve, reject) => {
+                    database.run('UPDATE todos SET text=? WHERE id=?;', [text, id], (err) => {
+                        if (err) {
+                            reject([]);
+                        }
+
+                        resolve({ ...todo, ...{ text } });
+                    });
+                })
+        ),
 };
 
 app.use(

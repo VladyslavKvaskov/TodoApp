@@ -346,7 +346,7 @@ const App = () => {
                         sx={{
                             '& .MuiTextField-root': { m: 1, width: '25ch' },
                         }}
-                        className="d-flex justify-content-start align-items-start flex-wrap user-cards"
+                        className="d-flex justify-content-center align-items-start flex-wrap user-cards"
                     >
                         {!loading && renderUsers ? (
                             users.length > 0 ? (
