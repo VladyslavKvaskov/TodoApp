@@ -2,6 +2,8 @@
 import './App.css';
 import * as mui from '@mui/material';
 import React, { useEffect, useState } from 'react';
+import * as animation from '../node_modules/react-animations';
+import Radium, { StyleRoot } from 'radium';
 import * as icon from '@mui/icons-material';
 import { useMutation, useQuery } from '@apollo/client';
 import { GET_ALL_USERS } from './queries/user';
@@ -10,6 +12,13 @@ import { ADD_USER, DELETE_USER } from './mutations/user';
 import { ADD_TODO, DELETE_TODO, DO_TODO, UNDO_TODO, SET_TEXT_TODO } from './mutations/todo';
 
 const forbiddenSymbolsNumeric = ['KeyE', 'Period', 'Minus', 'Equal'];
+
+const styles = {
+    fadeIn: {
+        animation: 'x 1s',
+        animationName: Radium.keyframes(animation.fadeIn, 'fadeIn'),
+    },
+};
 
 const App = () => {
     const [username, setUsername] = useState('');
@@ -63,7 +72,7 @@ const App = () => {
                     Array.from(users).map((user) => {
                         if (user.id === userId) {
                             const todos = Array.from(user.todos);
-                            todos.push(data.addTodo);
+                            todos.unshift(data.addTodo);
                             return { ...user, ...{ todos: todos } };
                         } else {
                             return user;
@@ -218,7 +227,7 @@ const App = () => {
                 setUsername('');
                 setAge('');
                 const allUsers = Array.from(users);
-                allUsers.push(data.addUser);
+                allUsers.unshift(data.addUser);
                 setUsers(allUsers);
                 nameInput.focus();
             })
@@ -257,6 +266,8 @@ const App = () => {
                 (() => {
                     if (e.target.value > 150) {
                         return 150;
+                    } else if (e.target.value < 0) {
+                        return 0;
                     } else {
                         return ((value) => {
                             const arr = value.split('');
@@ -296,64 +307,54 @@ const App = () => {
     };
 
     return (
-        <div className='d-flex justify-content-center flex-wrap align-items-center'>
-            {!errLoad ? (
-                <>
-                    {/* {(() => {
-                debugger;
-            })()} */}
-                    <div style={{ maxWidth: 500, minWidth: 300, width: '100%' }}>
-                        <mui.Box
-                            onSubmit={onAddUser}
-                            component='form'
-                            sx={{
-                                width: '100%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexWrap: 'wrap',
-                                '& .MuiTextField-root': { m: 1, width: '25ch' },
-                            }}
-                            noValidate
-                            autoComplete='off'
-                        >
-                            <mui.TextField
-                                inputRef={(input) => {
-                                    setNameInput(input);
+        <StyleRoot>
+            <div className="d-flex justify-content-center flex-wrap align-items-center">
+                {!errLoad ? (
+                    <>
+                        <div style={{ maxWidth: 500, minWidth: 300, width: '100%', ...styles.fadeIn }}>
+                            <mui.Box
+                                onSubmit={onAddUser}
+                                component="form"
+                                sx={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexWrap: 'wrap',
+                                    '& .MuiTextField-root': { m: 1, width: '25ch' },
                                 }}
-                                name='username'
-                                label='Name'
-                                variant='filled'
-                                onInput={onChange}
-                                onChange={onChange}
-                                value={username}
-                                className='form-input'
-                            />
-                            <mui.TextField className='form-input' name='age' onKeyDown={onKeyDown} label='Age' variant='filled' type='number' onInput={onChange} onChange={onChange} value={age} />
+                                noValidate
+                                autoComplete="off"
+                            >
+                                <mui.TextField
+                                    inputRef={(input) => {
+                                        setNameInput(input);
+                                    }}
+                                    name="username"
+                                    label="Name"
+                                    variant="filled"
+                                    onInput={onChange}
+                                    onChange={onChange}
+                                    value={username}
+                                    className="form-input"
+                                />
+                                <mui.TextField className="form-input" name="age" onKeyDown={onKeyDown} label="Age" variant="filled" type="number" onInput={onChange} onChange={onChange} value={age} />
 
-                            <mui.Button style={{ width: '100%', margin: 8 }} aria-label='add user' disabled={username.length === 0 || age.length === 0 || disabled} type='submit' variant='contained' endIcon={<icon.Add />}>
-                                Add
-                            </mui.Button>
-                            <mui.Snackbar open={open} autoHideDuration={6000} onClose={toastClose}>
-                                <mui.Alert onClose={toastClose} severity='error' sx={{ width: '100%' }}>
-                                    {actionError}
-                                </mui.Alert>
-                            </mui.Snackbar>
-                        </mui.Box>
-                    </div>
-                    <mui.Box
-                        component='div'
-                        sx={{
-                            '& .MuiTextField-root': { m: 1, width: '25ch' },
-                        }}
-                        className='d-flex justify-content-center align-items-start flex-wrap user-cards'
-                    >
-                        {!loading && renderUsers ? (
-                            users.length > 0 ? (
-                                Array.from(users)
-                                    .reverse()
-                                    .map((user) => (
-                                        <div key={user.id} className='user-card'>
+                                <mui.Button style={{ width: '100%', margin: 8 }} aria-label="add user" disabled={username.length === 0 || age.length === 0 || disabled} type="submit" variant="contained" endIcon={<icon.Add />}>
+                                    Add
+                                </mui.Button>
+                                <mui.Snackbar open={open} autoHideDuration={6000} onClose={toastClose}>
+                                    <mui.Alert onClose={toastClose} severity="error" sx={{ width: '100%' }}>
+                                        {actionError}
+                                    </mui.Alert>
+                                </mui.Snackbar>
+                            </mui.Box>
+                        </div>
+                        <div className="d-flex justify-content-center flex-wrap align-items-start" style={{ width: '100%' }}>
+                            {!loading && renderUsers ? (
+                                users.length > 0 ? (
+                                    users.map((user) => (
+                                        <div key={user.id} className="user-card" style={styles.fadeIn}>
                                             <mui.Paper elevation={4}>
                                                 <mui.CardContent style={{ position: 'relative', padding: 16 }}>
                                                     <mui.IconButton
@@ -361,119 +362,118 @@ const App = () => {
                                                         onClick={(e) => {
                                                             onDeleteUser(e, user.id);
                                                         }}
-                                                        aria-label='delete user'
-                                                        color='error'
+                                                        aria-label="delete user"
+                                                        color="error"
                                                         style={{ position: 'absolute', right: 0, top: 0 }}
                                                     >
                                                         <icon.Delete />
                                                     </mui.IconButton>
-                                                    <mui.Typography className='d-flex align-items-end mt-4' variant='h5' component='div'>
+                                                    <mui.Typography className="d-flex align-items-end mt-4" variant="h5" component="div">
                                                         Name: {user.username}
                                                     </mui.Typography>
-                                                    <mui.Typography sx={{ fontSize: 14 }} color='text.secondary' gutterBottom>
+                                                    <mui.Typography sx={{ fontSize: 14 }} color="text.secondary" gutterBottom>
                                                         age: {user.age}
                                                     </mui.Typography>
 
-                                                    <mui.Typography sx={{ mt: 4, mb: 0 }} variant='h6' component='div'>
+                                                    <mui.Typography sx={{ mt: 4, mb: 0 }} variant="h6" component="div">
                                                         Todos
                                                         <mui.IconButton
                                                             onClick={(e) => {
                                                                 onAddTodo(e, user.id);
                                                             }}
-                                                            aria-label='add todo'
+                                                            aria-label="add todo"
                                                             disabled={disabled}
-                                                            color='success'
+                                                            color="success"
                                                         >
                                                             <icon.Add></icon.Add>
                                                         </mui.IconButton>
                                                     </mui.Typography>
                                                     {user.todos.length > 0 ? (
-                                                        <mui.List className='mb-4'>
-                                                            {Array.from(user.todos)
-                                                                .reverse()
-                                                                .map((todo) => (
-                                                                    <mui.ListItem
-                                                                        className='px-3'
-                                                                        key={todo.id}
-                                                                        secondaryAction={
-                                                                            <>
-                                                                                <mui.IconButton
-                                                                                    onClick={(e) => {
-                                                                                        onDeleteTodo(e, todo.id);
-                                                                                    }}
-                                                                                    disabled={disabled}
-                                                                                    edge='end'
-                                                                                    aria-label='delete todo'
-                                                                                >
-                                                                                    <icon.Delete />
-                                                                                </mui.IconButton>
-                                                                            </>
-                                                                        }
-                                                                        disablePadding
-                                                                    >
-                                                                        <mui.ListItemIcon style={{ minWidth: 'unset' }}>
-                                                                            <mui.Checkbox
-                                                                                edge='start'
-                                                                                disabled={disabled}
-                                                                                onChange={(e) => {
-                                                                                    onDoUndoTodo(e, todo);
+                                                        <mui.List className="mb-4">
+                                                            {user.todos.map((todo) => (
+                                                                <mui.ListItem
+                                                                    className="px-3"
+                                                                    key={todo.id}
+                                                                    secondaryAction={
+                                                                        <>
+                                                                            <mui.IconButton
+                                                                                onClick={(e) => {
+                                                                                    onDeleteTodo(e, todo.id);
                                                                                 }}
-                                                                                checked={todo.done}
-                                                                                tabIndex={-1}
-                                                                            />
-                                                                        </mui.ListItemIcon>
-                                                                        <mui.TextField
-                                                                            multiline
-                                                                            className='todo-text'
+                                                                                disabled={disabled}
+                                                                                edge="end"
+                                                                                aria-label="delete todo"
+                                                                            >
+                                                                                <icon.Delete />
+                                                                            </mui.IconButton>
+                                                                        </>
+                                                                    }
+                                                                    disablePadding
+                                                                >
+                                                                    <mui.ListItemIcon style={{ minWidth: 'unset' }}>
+                                                                        <mui.Checkbox
+                                                                            edge="start"
+                                                                            disabled={disabled}
                                                                             onChange={(e) => {
-                                                                                onSetTextTodo(e, todo);
+                                                                                onDoUndoTodo(e, todo);
                                                                             }}
-                                                                            style={{ width: 'calc(100% - 86px)' }}
-                                                                            variant='standard'
-                                                                            value={todo.text}
-                                                                            label='todo'
+                                                                            checked={todo.done}
+                                                                            tabIndex={-1}
                                                                         />
-                                                                    </mui.ListItem>
-                                                                ))}
+                                                                    </mui.ListItemIcon>
+                                                                    <mui.TextField
+                                                                        multiline
+                                                                        className="todo-text"
+                                                                        onChange={(e) => {
+                                                                            onSetTextTodo(e, todo);
+                                                                        }}
+                                                                        style={{ width: 'calc(100% - 86px)' }}
+                                                                        variant="standard"
+                                                                        value={todo.text}
+                                                                        label="todo"
+                                                                    />
+                                                                </mui.ListItem>
+                                                            ))}
                                                         </mui.List>
                                                     ) : (
-                                                        <div className='mb-5 mt-3'>No todos yet</div>
+                                                        <div className="mb-5 mt-3">No todos yet</div>
                                                     )}
                                                 </mui.CardContent>
                                             </mui.Paper>
                                         </div>
                                     ))
+                                ) : (
+                                    <div className="d-flex justify-content-center align-items-center" style={{ width: '100%' }}>
+                                        <mui.CardContent style={{ padding: 16 }}>
+                                            <span>No users yet</span>
+                                        </mui.CardContent>
+                                    </div>
+                                )
                             ) : (
-                                <div className='d-flex justify-content-center align-items-center' style={{ width: '100%' }}>
+                                <div className="d-flex justify-content-center align-items-center" style={{ width: '100%' }}>
                                     <mui.CardContent style={{ padding: 16 }}>
-                                        <span>No users yet</span>
+                                        <div className="spinner-border" role="status">
+                                            <span className="visually-hidden">Loading...</span>
+                                        </div>
                                     </mui.CardContent>
                                 </div>
-                            )
-                        ) : (
-                            <div className='d-flex justify-content-center align-items-center' style={{ width: '100%' }}>
-                                <mui.CardContent style={{ padding: 16 }}>
-                                    <div className='spinner-border' role='status'>
-                                        <span className='visually-hidden'>Loading...</span>
-                                    </div>
-                                </mui.CardContent>
-                            </div>
-                        )}
-                    </mui.Box>
-                </>
-            ) : (
-                <mui.Alert
-                    severity='error'
-                    action={
-                        <mui.Button disabled={refreshDisabled} onClick={reload} color='inherit' size='small'>
-                            Refresh
-                        </mui.Button>
-                    }
-                >
-                    {errLoad}
-                </mui.Alert>
-            )}
-        </div>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <mui.Alert
+                        severity="error"
+                        action={
+                            <mui.Button disabled={refreshDisabled} onClick={reload} color="inherit" size="small">
+                                Refresh
+                            </mui.Button>
+                        }
+                    >
+                        {errLoad}
+                    </mui.Alert>
+                )}
+            </div>
+        </StyleRoot>
     );
 };
 

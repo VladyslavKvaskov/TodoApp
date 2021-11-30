@@ -27,7 +27,7 @@ app.use(cors());
 const root = {
     users: () =>
         new Promise((resolve, reject) => {
-            database.all('SELECT * FROM users;', (err, rowsUser) => {
+            database.all('SELECT * FROM users ORDER BY id DESC;', (err, rowsUser) => {
                 if (err) {
                     reject([]);
                 }
@@ -37,7 +37,7 @@ const root = {
         }).then(
             (rowsUser) =>
                 new Promise((resolve, reject) => {
-                    database.all('SELECT * FROM todos;', (err, rowsTodo) => {
+                    database.all('SELECT * FROM todos ORDER BY id DESC;', (err, rowsTodo) => {
                         if (err) {
                             reject([]);
                         }
