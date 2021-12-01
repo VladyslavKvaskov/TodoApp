@@ -1,11 +1,22 @@
 const express = require('express');
 const { graphqlHTTP } = require('express-graphql');
 const sqlite3 = require('sqlite3').verbose();
-
+const { PubSub } = require('graphql-subscriptions');
 const cors = require('cors');
 const schema = require('./schema');
+const { execute, subscribe } = require('graphql');
+const { SubscriptionServer } = require('subscriptions-transport-ws');
+const { createServer } = require('http');
 
 const database = new sqlite3.Database('database.db');
+
+const pubsub = new PubSub();
+const ADDED_USER = 'ADDED_USER';
+const DELETED_USER = 'DELETED_USER';
+const ADDED_TODO = 'ADDED_TODO';
+const DELETED_TODO = 'DELETED_TODO';
+const DID_UNDID_TODO = 'DID_UNDID_TODO';
+const SET_TEXT_TODO = 'SET_TEXT_TODO';
 
 database.run(`
     CREATE TABLE IF NOT EXISTS users (
@@ -24,7 +35,16 @@ database.run(`
 const app = express();
 app.use(cors());
 
-const root = {
+const wsResolvers = {
+    addedUser: () => pubsub.asyncIterator(ADDED_USER),
+    deletedUser: () => pubsub.asyncIterator(DELETED_USER),
+    addedTodo: () => pubsub.asyncIterator(ADDED_TODO),
+    deletedTodo: () => pubsub.asyncIterator(DELETED_TODO),
+    didUndidTodo: () => pubsub.asyncIterator(DID_UNDID_TODO),
+    setTextTodo: () => pubsub.asyncIterator(SET_TEXT_TODO),
+};
+
+const httpResolvers = {
     users: () =>
         new Promise((resolve, reject) => {
             database.all('SELECT * FROM users ORDER BY id DESC;', (err, rowsUser) => {
@@ -79,6 +99,28 @@ const root = {
                 })
         ),
 
+    todos: () =>
+        new Promise((resolve, reject) => {
+            database.all('SELECT * FROM todos;', (err, todos) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(todos);
+            });
+        }),
+
+    todo: ({ id }) =>
+        new Promise((resolve, reject) => {
+            database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
+                if (err) {
+                    reject([]);
+                }
+
+                resolve(todo);
+            });
+        }),
+
     addUser: ({ user }) =>
         new Promise((resolve, reject) => {
             database.run('INSERT INTO users (username, age) VALUES (?,?);', [user.username, user.age], (err) => {
@@ -89,12 +131,19 @@ const root = {
                     if (err) {
                         reject([]);
                     }
-                    resolve({
+
+                    const addedUser = {
                         id: row['id'],
                         username: user.username,
                         age: user.age,
                         todos: [],
+                    };
+
+                    pubsub.publish(ADDED_USER, {
+                        addedUser,
                     });
+
+                    resolve(addedUser);
                 });
             });
         }),
@@ -131,35 +180,19 @@ const root = {
                                 if (err) {
                                     reject([]);
                                 }
-                                resolve({ ...user, ...{ todos } });
+
+                                const deletedUser = { ...user, ...{ todos } };
+
+                                pubsub.publish(DELETED_USER, {
+                                    deletedUser,
+                                });
+
+                                resolve(deletedUser);
                             });
                         })
                 )
             )
         ),
-
-    todos: () =>
-        new Promise((resolve, reject) => {
-            database.all('SELECT * FROM todos;', (err, todos) => {
-                if (err) {
-                    reject([]);
-                }
-
-                resolve(todos);
-            });
-        }),
-
-    todo: ({ id }) =>
-        new Promise((resolve, reject) => {
-            database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
-                if (err) {
-                    reject([]);
-                }
-
-                resolve(todo);
-            });
-        }),
-
     addTodo: ({ todo }) =>
         new Promise((resolve, reject) => {
             database.run('INSERT INTO todos (text, done, userId) VALUES (?,?,?);', [todo.text, todo.done ? true : false, todo.userId], (err) => {
@@ -170,12 +203,19 @@ const root = {
                     if (err) {
                         reject([]);
                     }
-                    resolve({
+
+                    const addedTodo = {
                         id: row['id'],
                         text: todo.text,
                         done: todo.done ? true : false,
                         userId: todo.userId,
+                    };
+
+                    pubsub.publish(ADDED_TODO, {
+                        addedTodo,
                     });
+
+                    resolve(addedTodo);
                 });
             });
         }),
@@ -197,12 +237,16 @@ const root = {
                             reject([]);
                         }
 
+                        pubsub.publish(DELETED_TODO, {
+                            deletedTodo: todo,
+                        });
+
                         resolve(todo);
                     });
                 })
         ),
 
-    doTodo: ({ id }) =>
+    doUndoTodo: ({ id, done }) =>
         new Promise((resolve, reject) => {
             database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
                 if (err) {
@@ -214,36 +258,22 @@ const root = {
         }).then(
             (todo) =>
                 new Promise((resolve, reject) => {
-                    database.run('UPDATE todos SET done=? WHERE id=?;', [true, id], (err) => {
+                    database.run('UPDATE todos SET done=? WHERE id=?;', [done, id], (err) => {
                         if (err) {
                             reject([]);
                         }
 
-                        resolve({ ...todo, ...{ done: true } });
+                        const didUndidTodo = { ...todo, ...{ done: done } };
+
+                        pubsub.publish(DID_UNDID_TODO, {
+                            didUndidTodo,
+                        });
+
+                        resolve(didUndidTodo);
                     });
                 })
         ),
-    undoTodo: ({ id }) =>
-        new Promise((resolve, reject) => {
-            database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
-                if (err) {
-                    reject([]);
-                }
 
-                resolve(todo);
-            });
-        }).then(
-            (todo) =>
-                new Promise((resolve, reject) => {
-                    database.run('UPDATE todos SET done=? WHERE id=?;', [false, id], (err) => {
-                        if (err) {
-                            reject([]);
-                        }
-
-                        resolve({ ...todo, ...{ done: false } });
-                    });
-                })
-        ),
     setTextTodo: ({ id, text }) =>
         new Promise((resolve, reject) => {
             database.get('SELECT * FROM todos WHERE id=?;', [id], (err, todo) => {
@@ -261,7 +291,13 @@ const root = {
                             reject([]);
                         }
 
-                        resolve({ ...todo, ...{ text } });
+                        const setTextTodo = { ...todo, ...{ text } };
+
+                        pubsub.publish(SET_TEXT_TODO, {
+                            setTextTodo,
+                        });
+
+                        resolve(setTextTodo);
                     });
                 })
         ),
@@ -272,8 +308,24 @@ app.use(
     graphqlHTTP({
         graphiql: true,
         schema,
-        rootValue: root,
+        rootValue: httpResolvers,
     })
 );
 
-app.listen(5000, () => console.log('Server started on port 5000'));
+const server = createServer(app);
+
+server.listen(5000, () => {
+    new SubscriptionServer(
+        {
+            execute,
+            subscribe,
+            schema,
+            rootValue: wsResolvers,
+        },
+        {
+            server,
+            path: '/subscriptions',
+        }
+    );
+    console.log('Server started on port 5000');
+});

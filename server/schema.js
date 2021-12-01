@@ -1,6 +1,15 @@
 const { buildSchema } = require('graphql');
 
 const schema = buildSchema(`
+    type Subscription {
+        addedUser: User
+        deletedUser: User
+        addedTodo: Todo
+        deletedTodo: Todo
+        didUndidTodo: Todo
+        setTextTodo: Todo
+    }
+
     type User {
         id: ID
         username: String
@@ -41,8 +50,7 @@ const schema = buildSchema(`
         deleteUser(id: ID): User
         addTodo(todo: TodoInput): Todo
         deleteTodo(id: ID): Todo
-        doTodo(id: ID): Todo
-        undoTodo(id: ID): Todo
+        doUndoTodo(id: ID, done: Boolean): Todo
         setTextTodo(id: ID, text: String): Todo
     }
 `);
