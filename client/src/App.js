@@ -5,11 +5,14 @@ import React, { useEffect, useState } from 'react';
 import * as animation from '../node_modules/react-animations';
 import Radium, { StyleRoot } from 'radium';
 import * as icon from '@mui/icons-material';
-import { useMutation, useQuery } from '@apollo/client';
+import { useMutation, useQuery, useSubscription } from '@apollo/client';
 import { GET_ALL_USERS } from './queries/user';
 import '../node_modules/bootstrap/dist/css/bootstrap.min.css';
 import { ADD_USER, DELETE_USER } from './mutations/user';
-import { ADD_TODO, DELETE_TODO, DO_TODO, UNDO_TODO, SET_TEXT_TODO } from './mutations/todo';
+import { SUBSCRIBE_ADDED_USER, SUBSCRIBE_DELETED_USER } from './subscriptions/user';
+import { SUBSCRIBE_ADDED_TODO, SUBSCRIBE_DELETED_TODO, SUBSCRIBE_DID_UNDID_TODO, SUBSCRIBE_SET_TEXT_TODO } from './subscriptions/todo';
+
+import { ADD_TODO, DELETE_TODO, DO_UNDO_TODO, SET_TEXT_TODO } from './mutations/todo';
 
 const forbiddenSymbolsNumeric = ['KeyE', 'Period', 'Minus', 'Equal'];
 
@@ -30,8 +33,7 @@ const App = () => {
     const [deleteUser] = useMutation(DELETE_USER);
     const [addTodo] = useMutation(ADD_TODO);
     const [deleteTodo] = useMutation(DELETE_TODO);
-    const [doTodo] = useMutation(DO_TODO);
-    const [undoTodo] = useMutation(UNDO_TODO);
+    const [doUndoTodo] = useMutation(DO_UNDO_TODO);
     const [setTextTodo] = useMutation(SET_TEXT_TODO);
 
     const [disabled, setDisabled] = useState(false);
@@ -45,7 +47,7 @@ const App = () => {
     const [settingText, setSettingText] = useState(false);
 
     useEffect(() => {
-        if (!loading) {
+        if (!loading && users.length === 0) {
             setErrLoad('');
             setUsers(data.users);
             setRenderUsers(true);
@@ -56,6 +58,7 @@ const App = () => {
             setErrLoad(error.message);
         }
     }, [error]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const onAddTodo = (e, userId) => {
         e.preventDefault();
         setDisabled(true);
@@ -67,19 +70,7 @@ const App = () => {
                 },
             },
         })
-            .then(({ data }) => {
-                setUsers(
-                    Array.from(users).map((user) => {
-                        if (user.id === userId) {
-                            const todos = Array.from(user.todos);
-                            todos.unshift(data.addTodo);
-                            return { ...user, ...{ todos: todos } };
-                        } else {
-                            return user;
-                        }
-                    })
-                );
-            })
+            .then(({ data }) => {})
             .catch((err) => {
                 setActionError(err.message);
                 setOpen(true);
@@ -97,9 +88,7 @@ const App = () => {
                 id: todoId,
             },
         })
-            .then(({ data }) => {
-                setUsers(Array.from(users).map((user) => ({ ...user, ...{ todos: Array.from(user.todos).filter((todo) => todo.id !== data.deleteTodo.id) } })));
-            })
+            .then(({ data }) => {})
             .catch((err) => {
                 setActionError(err.message);
                 setOpen(true);
@@ -113,63 +102,20 @@ const App = () => {
         e.preventDefault();
         setDisabled(true);
 
-        if (t.done) {
-            undoTodo({
-                variables: {
-                    id: t.id,
-                },
+        doUndoTodo({
+            variables: {
+                id: t.id,
+                done: t.done ? false : true,
+            },
+        })
+            .then(({ data }) => {})
+            .catch((err) => {
+                setActionError(err.message);
+                setOpen(true);
             })
-                .then(({ data }) => {
-                    setUsers(
-                        Array.from(users).map((user) => {
-                            const todos = Array.from(user.todos).map((todo) => {
-                                if (todo.id === t.id) {
-                                    return { ...todo, ...{ done: false } };
-                                }
-
-                                return todo;
-                            });
-
-                            return { ...user, ...{ todos } };
-                        })
-                    );
-                })
-                .catch((err) => {
-                    setActionError(err.message);
-                    setOpen(true);
-                })
-                .finally(() => {
-                    setDisabled(false);
-                });
-        } else {
-            doTodo({
-                variables: {
-                    id: t.id,
-                },
-            })
-                .then(({ data }) => {
-                    setUsers(
-                        Array.from(users).map((user) => {
-                            const todos = Array.from(user.todos).map((todo) => {
-                                if (todo.id === t.id) {
-                                    return { ...todo, ...{ done: true } };
-                                }
-
-                                return todo;
-                            });
-
-                            return { ...user, ...{ todos } };
-                        })
-                    );
-                })
-                .catch((err) => {
-                    setActionError(err.message);
-                    setOpen(true);
-                })
-                .finally(() => {
-                    setDisabled(false);
-                });
-        }
+            .finally(() => {
+                setDisabled(false);
+            });
     };
 
     const onSetTextTodo = (e, t) => {
@@ -226,9 +172,7 @@ const App = () => {
             .then(({ data }) => {
                 setUsername('');
                 setAge('');
-                const allUsers = Array.from(users);
-                allUsers.unshift(data.addUser);
-                setUsers(allUsers);
+
                 nameInput.focus();
             })
             .catch((err) => {
@@ -248,9 +192,7 @@ const App = () => {
                 id: userId,
             },
         })
-            .then(({ data }) => {
-                setUsers(Array.from(users).filter((user) => user.id !== data.deleteUser.id));
-            })
+            .then(({ data }) => {})
             .catch((err) => {
                 setActionError(err.message);
                 setOpen(true);
@@ -259,6 +201,79 @@ const App = () => {
                 setDisabled(false);
             });
     };
+
+    useSubscription(SUBSCRIBE_ADDED_USER, {
+        onSubscriptionData: (data) => {
+            const allUsers = Array.from(users);
+            allUsers.unshift(data.subscriptionData.data.addedUser);
+            setUsers(allUsers);
+        },
+    });
+
+    useSubscription(SUBSCRIBE_DELETED_USER, {
+        onSubscriptionData: (data) => {
+            data = data.subscriptionData.data.deletedUser;
+            setUsers(Array.from(users).filter((user) => user.id !== data.id));
+        },
+    });
+
+    useSubscription(SUBSCRIBE_ADDED_TODO, {
+        onSubscriptionData: (data) => {
+            setUsers(
+                Array.from(users).map((user) => {
+                    if (user.id === data.subscriptionData.data.addedTodo.userId) {
+                        const todos = Array.from(user.todos);
+                        todos.unshift(data.subscriptionData.data.addedTodo);
+                        return { ...user, ...{ todos: todos } };
+                    } else {
+                        return user;
+                    }
+                })
+            );
+        },
+    });
+
+    useSubscription(SUBSCRIBE_DELETED_TODO, {
+        onSubscriptionData: (data) => {
+            setUsers(Array.from(users).map((user) => ({ ...user, ...{ todos: Array.from(user.todos).filter((todo) => todo.id !== data.subscriptionData.data.deletedTodo.id) } })));
+        },
+    });
+
+    useSubscription(SUBSCRIBE_DID_UNDID_TODO, {
+        onSubscriptionData: (data) => {
+            setUsers(
+                Array.from(users).map((user) => {
+                    const todos = Array.from(user.todos).map((todo) => {
+                        if (todo.id === data.subscriptionData.data.didUndidTodo.id) {
+                            return { ...todo, ...{ done: data.subscriptionData.data.didUndidTodo.done } };
+                        }
+
+                        return todo;
+                    });
+
+                    return { ...user, ...{ todos } };
+                })
+            );
+        },
+    });
+
+    useSubscription(SUBSCRIBE_SET_TEXT_TODO, {
+        onSubscriptionData: (data) => {
+            setUsers(
+                Array.from(users).map((user) => {
+                    const todos = Array.from(user.todos).map((todo) => {
+                        if (todo.id === data.subscriptionData.data.setTextTodo.id) {
+                            return { ...todo, ...{ text: data.subscriptionData.data.setTextTodo.text } };
+                        }
+
+                        return todo;
+                    });
+
+                    return { ...user, ...{ todos } };
+                })
+            );
+        },
+    });
 
     const onChange = (e) => {
         if (e.target.name === 'age') {

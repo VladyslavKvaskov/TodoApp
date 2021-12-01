@@ -19,18 +19,11 @@ export const DELETE_TODO = gql`
     }
 `;
 
-export const DO_TODO = gql`
-    mutation doTodo($id: ID) {
-        doTodo(id: $id) {
+export const DO_UNDO_TODO = gql`
+    mutation doUndoTodo($id: ID, $done: Boolean) {
+        doUndoTodo(id: $id, done: $done) {
             id
-        }
-    }
-`;
-
-export const UNDO_TODO = gql`
-    mutation undoTodo($id: ID) {
-        undoTodo(id: $id) {
-            id
+            done
         }
     }
 `;
