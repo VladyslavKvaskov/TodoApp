@@ -1,11 +1,19 @@
 # TodoApp
 
-Run the folowing commands in Terminal/Command Prompt
+Run the folowing commands in the Terminal/Command Prompt
 
-cd server
+```cd client```
 <br>
-npm run dev
+```npm install```
 <br>
-cd ../client
 <br>
-npm start
+```cd ../server```
+<br>
+```npm i --force```
+<br>
+```npm run dev```
+<br>
+<br>
+```cd ../client```
+<br>
+```npm start```
